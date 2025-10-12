@@ -1,0 +1,48 @@
+name: mes-predictor
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy>=1.17.3
+  - pandas>=1.1.5
+  - pandas-market-calendars
+  - matplotlib
+  - scipy
+  - scikit-learn>=0.21.0
+  - gymnasium
+  - yfinance
+  - ta-lib
+  - swig
+  - lz4
+  - sqlalchemy
+  - tensorboard
+  - pytest
+  - pre-commit
+  - sphinx
+  - sphinx_rtd_theme
+  - recommonmark
+  - selenium
+  - beautifulsoup4
+  - pytz
+  - cvxpy
+  - ecos
+  - osqp
+  - scs
+  - setuptools>=65.5.0
+  - wheel>=0.33.6
+  - pip:
+      - "ray[default]"
+      - "ray[tune]"
+      - stable-baselines3[extra]
+      - alpaca-py
+      - "alpaca-trade-api>=2.1.0"
+      - ccxt>=1.66.32
+      - pyfolio-reloaded
+      - webdriver-manager
+      - "importlib-metadata>=6,<8.6"
+      - jqdatasdk
+      - wrds
+      - stockstats>=0.4.0
+      - git+https://github.com/AI4Finance-Foundation/ElegantRL.git
+

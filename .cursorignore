@@ -1,0 +1,7 @@
+datasets/**
+!datasets/mes_finrl_ready.csv
+
+# Optional: other large assets
+figs/**
+examples/**/*.ipynb
+docs/**/image/**

@@ -1,3 +1,7 @@
 {
-    "makefile.extensionOutputFolder": "./.vscode"
+    "makefile.extensionOutputFolder": "./.vscode",
+    "python.languageServer": "None",
+    "search.exclude": {
+        "datasets/**": true
+    }
 }

@@ -1,0 +1,13 @@
+# Minimal requirements for training on vast.ai
+numpy>=1.17.3
+pandas>=1.1.5
+gymnasium
+stable-baselines3[extra]
+torch
+tensorboard
+plotly
+matplotlib
+scikit-learn>=0.21.0
+
+# Optional but recommended
+TA-lib

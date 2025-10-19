@@ -1,0 +1,27 @@
+python scripts/train_dense.py \                 
+  --ent-coef 0.3 \                 
+  --ent-decay \                             
+  --ent-end 0.01 \      
+  --learning-rate 1e-4 \
+  --lr-decay \
+  --lr-end 1e-6 \
+  --n-envs 32 \
+  --timesteps 500_000_000 \
+  --train-slice 350_000 \
+  --name ppo_2_years_500M
+
+
+  source ~/anaconda3/etc/profile.d/conda.sh && conda activate mes_predictor && \
+python scripts/train_dense.py \
+  --load-model models/ppo_2_years_500M_1.0_transaction_cost_more_ticks \
+  --name ppo_2_years_500M_1.0_transaction_cost-graduated \
+  --transaction-cost 1.0 \
+  --timesteps 150_000_000 \
+  --train-slice 350000 \
+  --n-envs 32 \
+  --learning-rate 5e-6 \
+  --lr-decay \
+  --lr-end 1e-6 \
+  --ent-coef 0.07 \
+  --ent-decay \
+  --ent-end 0.03

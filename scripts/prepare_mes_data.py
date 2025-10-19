@@ -9,15 +9,20 @@ from datetime import datetime
 def prepare_data(
     input_file='datasets/glbx-mdp3-20190414-20251003.ohlcv-1m copy.csv',
     output_file='datasets/mes_finrl_ready.csv',
-    sample_rows=None  # Set to a number like 10000 for testing
+    sample_rows=None,  # Set to a number like 10000 for testing
+    front='daily',     # 'daily' (default), 'minute', or 'none'
 ):
     """
-    Convert Databento CSV to FinRL format
+    Convert Databento CSV to FinRL format, with optional front-month filtering
 
     Args:
         input_file: Path to input CSV
         output_file: Path to output CSV
         sample_rows: If set, only process first N rows (for testing)
+        front: Front-month selection policy
+            - 'daily': for each day pick the symbol with max total volume (recommended)
+            - 'minute': per timestamp pick the symbol with max volume
+            - 'none': keep all symbols as-is
     """
     print(f"Starting data preparation...")
     print(f"Input: {input_file}")
@@ -59,6 +64,35 @@ def prepare_data(
     print("Sorting by timestamp...")
     df = df.sort_values('timestamp').reset_index(drop=True)
 
+    # Optional: front-month filtering
+    if front not in {'daily', 'minute', 'none'}:
+        raise ValueError("front must be one of {'daily','minute','none'}")
+
+    if front != 'none':
+        print(f"Applying front-month filter: {front}")
+        if front == 'daily':
+            # Choose, per day, the symbol with max total volume; keep only those rows
+            df['date'] = df['timestamp'].dt.date
+            vol = df.groupby(['date', 'tic'], as_index=False)['volume'].sum()
+            front_map = (
+                vol.sort_values(['date', 'volume'])
+                   .groupby('date')
+                   .tail(1)[['date', 'tic']]
+            )
+            before = len(df)
+            df = df.merge(front_map, on=['date', 'tic'], how='inner')
+            df = df.drop(columns=['date']).sort_values('timestamp').reset_index(drop=True)
+            after = len(df)
+            print(f"Front-month (daily) kept {after:,}/{before:,} rows; symbols: {df['tic'].nunique()}")
+        elif front == 'minute':
+            # For each timestamp, keep the row with highest volume (front-by-minute)
+            df = df.sort_values(['timestamp', 'volume'])
+            idx = df.groupby('timestamp')['volume'].idxmax()
+            before = len(df)
+            df = df.loc[idx].sort_values('timestamp').reset_index(drop=True)
+            after = len(df)
+            print(f"Front-month (per-minute) kept {after:,}/{before:,} rows; symbols: {df['tic'].nunique()}")
+
     # Print some stats
     print("\n=== Data Summary ===")
     print(f"Total rows: {len(df):,}")
@@ -99,6 +133,8 @@ if __name__ == "__main__":
                        help='Output CSV file path')
     parser.add_argument('--sample', '-s', type=int,
                        help='Process only first N rows (for testing)')
+    parser.add_argument('--front', '-f', default='daily', choices=['daily', 'minute', 'none'],
+                       help="Front-month selection: 'daily' (by day max volume), 'minute' (per-timestamp max volume), or 'none'")
 
     args = parser.parse_args()
 
@@ -106,7 +142,8 @@ if __name__ == "__main__":
     _ = prepare_data(
         input_file=args.input,
         output_file=args.output,
-        sample_rows=args.sample
+        sample_rows=args.sample,
+        front=args.front
     )
 
     print("\n\u2713 Done! You can now use the cleaned data with FinRL.")

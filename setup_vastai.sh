@@ -25,9 +25,13 @@ cd ~
 
 # Install Python dependencies
 echo "Installing Python packages..."
-cd ~/mes-predictor  # Adjust path if needed
+cd /workspace/mes-predictor
 pip install --upgrade pip -q
 pip install -r requirements_vastai.txt -q
+
+# Install the project itself in editable mode
+echo "Installing mes-predictor package..."
+pip install -e . -q
 
 # Verify installation
 echo "Verifying installation..."
@@ -37,5 +41,5 @@ python -c "import torch; print('PyTorch:', torch.__version__, 'CUDA:', torch.cud
 echo "=== Setup complete! ==="
 echo ""
 echo "To start training:"
-echo "  cd ~/mes-predictor"
+echo "  cd /workspace/mes-predictor"
 echo "  python scripts/train_dense.py --name ppo_vastai --timesteps 100000000 --train-slice 350000 --n-envs 32 --transaction-cost 1.0"

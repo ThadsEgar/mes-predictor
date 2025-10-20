@@ -64,6 +64,7 @@ def main():
                 max_hold_bars=240,  # Maximum 4 hours for day trading
                 holding_loss_penalty=True,  # Penalize holding unrealized losses
                 grace_period_bars=45,  # 45 minute grace period before penalty
+                emergency_stop_loss=-50.0,  # Force exit if loss exceeds $50
             )
             return Monitor(env)
         return _init

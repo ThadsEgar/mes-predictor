@@ -31,6 +31,7 @@ class DenseRewardTradingEnv(gym.Env):
         max_hold_bars: int = 30,  # Maximum bars to hold position (30 minutes for day trading)
         holding_loss_penalty: bool = True,  # Penalize holding unrealized losses
         grace_period_bars: int = 45,  # Bars before penalty kicks in (45 min grace period)
+        emergency_stop_loss: float = -50.0,  # Force exit if unrealized loss exceeds this ($)
     ):
         self.price_array = price_array.astype(np.float32).flatten()
         self.tech_array = tech_array.astype(np.float32)
@@ -41,6 +42,7 @@ class DenseRewardTradingEnv(gym.Env):
         self.max_hold_bars = max_hold_bars
         self.holding_loss_penalty = holding_loss_penalty
         self.grace_period_bars = grace_period_bars
+        self.emergency_stop_loss = emergency_stop_loss
         
         # Spaces
         self.action_space = spaces.Discrete(2)
@@ -191,7 +193,49 @@ class DenseRewardTradingEnv(gym.Env):
         # Advance time
         self.day += 1
         terminated = self.day >= self.max_steps
-        
+
+        # EMERGENCY STOP-LOSS: Force exit if loss exceeds threshold
+        if self.position > 0:
+            price = self.price_array[self.day]
+            unrealized_pnl = (price - self.entry_price) * self.contract_multiplier
+
+            if unrealized_pnl < self.emergency_stop_loss:
+                # Force close position due to emergency stop-loss
+                cost = price * self.contract_multiplier
+                transaction_cost = cost * (self.transaction_cost_bps / 10000)
+                trade_pnl = unrealized_pnl - 2 * transaction_cost
+                trade_pnl_no_cost = unrealized_pnl
+
+                self.total_pnl += trade_pnl
+                self.total_bars_held += (self.day - self.entry_day)
+                self.trades += 1
+
+                if trade_pnl > 0:
+                    self.wins += 1
+                else:
+                    self.losses += 1
+
+                if trade_pnl_no_cost > 0:
+                    self.wins_no_cost += 1
+                else:
+                    self.losses_no_cost += 1
+
+                # EXTRA PENALTY for hitting stop-loss
+                # Base PnL penalty + extra punishment for letting it get this bad
+                realization_reward = trade_pnl / 10.0  # Already very negative
+                realization_reward -= 5.0  # Extra -5.0 penalty for hitting emergency stop
+
+                info["realization_reward"] = realization_reward
+                info["action"] = "sell_emergency_stop"
+                info["exit_price"] = price
+                info["trade_pnl"] = trade_pnl
+                info["bars_held"] = self.day - self.entry_day
+                info["emergency_stop"] = True
+
+                # Reset position
+                self.position = 0
+                self.entry_price = 0.0
+
         # Check for max hold time (force exit if held too long)
         if self.position > 0 and (self.day - self.entry_day) >= self.max_hold_bars:
             # Force close position due to max hold time

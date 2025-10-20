@@ -57,6 +57,7 @@ def main():
         max_hold_bars=args.max_hold_bars,
         holding_loss_penalty=True,  # Match training
         grace_period_bars=45,  # Match training
+        emergency_stop_loss=-50.0,  # Match training
     )
     
     # Load model
@@ -184,8 +185,8 @@ def main():
             row=1, col=1
         )
 
-    # Add sell trades (color by profit) - includes both "sell" and "sell_forced"
-    sell_trades = [t for t in trades if t["type"] in ["sell", "sell_forced"]]
+    # Add sell trades (color by profit) - includes "sell", "sell_forced", and "sell_emergency_stop"
+    sell_trades = [t for t in trades if t["type"] in ["sell", "sell_forced", "sell_emergency_stop"]]
     if sell_trades:
         sell_colors = ['green' if t["pnl"] > 0 else 'red' for t in sell_trades]
         sell_text = [f"PnL: ${t['pnl']:.0f}, Held: {t['bars_held']} bars" for t in sell_trades]

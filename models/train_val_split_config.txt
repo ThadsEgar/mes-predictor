@@ -1,0 +1,5 @@
+Total bars: 2259478
+Train bars: 2234908
+Validation bars: 24570
+Validation months: 3
+Train fraction: 0.9891

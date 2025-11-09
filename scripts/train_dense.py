@@ -15,6 +15,8 @@ from finrl.meta.env_stock_trading.env_dense_trading import DenseRewardTradingEnv
 from finrl.meta.callbacks.dense_metrics import DenseEnvStatsCallback
 from finrl.meta.callbacks.entropy_decay import EntropyDecayCallback
 from finrl.meta.callbacks.lr_decay import LearningRateDecayCallback
+from finrl.meta.callbacks.transaction_cost_curriculum import TransactionCostCurriculumCallback
+from finrl.meta.callbacks.inactivity_penalty import InactivityPenaltyCallback
 from scripts.utils import compute_indicators
 import os
 
@@ -35,7 +37,12 @@ def main():
     parser.add_argument("--train-slice", type=int, default=50000)
     parser.add_argument("--name", default="ppo_dense")
     parser.add_argument("--load-model", type=str, default=None, help="Path to existing model to continue training")
-    parser.add_argument("--transaction-cost", type=float, default=0.5, help="Transaction cost in bps")
+    parser.add_argument("--cost-start", type=float, default=0.0, help="Starting transaction cost in bps (if same as cost-end, no curriculum)")
+    parser.add_argument("--cost-end", type=float, default=1.0, help="Final transaction cost in bps")
+    parser.add_argument("--cost-curriculum-steps", type=int, default=None, help="Steps to increase cost over (default: total_timesteps)")
+    parser.add_argument("--inactivity-penalty", action="store_true", help="Enable inactivity penalty fallback")
+    parser.add_argument("--inactivity-threshold", type=int, default=2880, help="Steps without trades before penalty (default: 2880 = 2 days)")
+    parser.add_argument("--inactivity-value", type=float, default=0.0001, help="Penalty value for inactivity")
     args = parser.parse_args()
     
     # Load and prepare data
@@ -53,14 +60,14 @@ def main():
         def _init():
             price_array = df[["close"]].values
             tech_array = compute_indicators(df).values.astype(float)
-            
+
             env = DenseRewardTradingEnv(
                 price_array=price_array,
                 tech_array=tech_array,
                 tick_size=0.25,
                 contract_multiplier=5.0,
-                transaction_cost_bps=args.transaction_cost,
-                inactivity_penalty=0.0,  # No inactivity penalty
+                transaction_cost_bps=args.cost_start,  # Start with initial cost
+                inactivity_penalty=0.0,  # Will be controlled by callback if enabled
                 max_hold_bars=240,  # Maximum 4 hours for day trading
                 holding_loss_penalty=True,  # Penalize holding unrealized losses
                 grace_period_bars=45,  # 45 minute grace period before penalty
@@ -112,7 +119,12 @@ def main():
     print(f"  Total rollout: {total_rollout_size}")
     print(f"  Batch size: {batch_size}")
     print(f"  Gradient steps per update: {(total_rollout_size * n_epochs) // batch_size}")
-    print(f"  Transaction cost: {args.transaction_cost} bps")
+    if args.cost_start != args.cost_end:
+        print(f"  Transaction cost curriculum: {args.cost_start} → {args.cost_end} bps")
+    else:
+        print(f"  Transaction cost: {args.cost_start} bps (fixed)")
+    if args.inactivity_penalty:
+        print(f"  Inactivity penalty: {args.inactivity_value} after {args.inactivity_threshold} steps")
 
     # Load existing model or create new one
     if args.load_model:
@@ -152,7 +164,7 @@ def main():
             max_grad_norm=0.5,
             target_kl=0.05,  # Stop update if policy changes too much (prevents collapse)
             policy_kwargs=dict(
-                net_arch=[256, 128, 128],  # 3 layers, 256 neurons each
+                net_arch=[256, 256, 128],
                 activation_fn=nn.ReLU,
             ),
             tensorboard_log="runs/tensorboard",
@@ -165,7 +177,7 @@ def main():
     
     # Setup callbacks
     callbacks = [DenseEnvStatsCallback()]
-    
+
     if args.lr_decay:
         lr_decay_steps = args.lr_decay_steps if args.lr_decay_steps else args.timesteps
         print(f"Learning rate decay: {args.learning_rate} → {args.lr_end} over {lr_decay_steps:,} steps")
@@ -174,7 +186,7 @@ def main():
             lr_end=args.lr_end,
             decay_steps=lr_decay_steps
         ))
-    
+
     if args.ent_decay:
         ent_decay_steps = args.ent_decay_steps if args.ent_decay_steps else args.timesteps
         print(f"Entropy decay: {args.ent_coef} → {args.ent_end} over {ent_decay_steps:,} steps")
@@ -182,6 +194,23 @@ def main():
             ent_start=args.ent_coef,
             ent_end=args.ent_end,
             decay_steps=ent_decay_steps
+        ))
+
+    # Automatically enable curriculum if cost_start != cost_end
+    if args.cost_start != args.cost_end:
+        cost_curriculum_steps = args.cost_curriculum_steps if args.cost_curriculum_steps else args.timesteps
+        print(f"Transaction cost curriculum: {args.cost_start} → {args.cost_end} bps over {cost_curriculum_steps:,} steps")
+        callbacks.append(TransactionCostCurriculumCallback(
+            cost_start=args.cost_start,
+            cost_end=args.cost_end,
+            curriculum_steps=cost_curriculum_steps
+        ))
+
+    if args.inactivity_penalty:
+        print(f"Inactivity penalty: {args.inactivity_value} after {args.inactivity_threshold} steps without trades")
+        callbacks.append(InactivityPenaltyCallback(
+            inactivity_threshold=args.inactivity_threshold,
+            penalty_value=args.inactivity_value
         ))
     
     model.learn(

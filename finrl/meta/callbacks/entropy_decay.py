@@ -31,22 +31,34 @@ class EntropyDecayCallback(BaseCallback):
         self.decay_steps = decay_steps
         
     def _on_step(self) -> bool:
-        """Update entropy coefficient with exponential decay (slow start, fast end)."""
-        if self.num_timesteps >= self.decay_steps:
-            # Decay complete, use end value
-            new_ent = self.ent_end
+        """Update entropy coefficient with step-based decay (6 steps for gradual transitions)."""
+        # Calculate which step we're in (6 total steps)
+        progress = self.num_timesteps / self.decay_steps
+
+        if progress >= 1.0:
+            step_index = 6
+        elif progress >= 5/6:
+            step_index = 5
+        elif progress >= 4/6:
+            step_index = 4
+        elif progress >= 3/6:
+            step_index = 3
+        elif progress >= 2/6:
+            step_index = 2
+        elif progress >= 1/6:
+            step_index = 1
         else:
-            # Exponential decay: slow at start, fast at end
-            # Using progress^3 for smooth acceleration
-            progress = self.num_timesteps / self.decay_steps
-            decay_factor = progress ** 3  # Cube makes it stay high longer, then drop fast
-            new_ent = self.ent_start - (self.ent_start - self.ent_end) * decay_factor
-        
+            step_index = 0
+
+        # Linear interpolation based on step
+        decay_amount = (step_index / 6.0)
+        new_ent = self.ent_start - (self.ent_start - self.ent_end) * decay_amount
+
         # Update model's entropy coefficient
         self.model.ent_coef = new_ent
-        
+
         # Log to TensorBoard
         self.logger.record("train/ent_coef_current", new_ent)
-        
+
         return True
 

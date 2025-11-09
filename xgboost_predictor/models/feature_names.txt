@@ -1,0 +1,16 @@
+close
+high
+low
+open
+rsi_14
+sma_7
+sma_21
+atr_14
+close_to_sma7
+close_to_sma21
+sma7_to_sma21
+high_low_range
+close_to_open
+price_change_1
+price_change_5
+price_change_20
